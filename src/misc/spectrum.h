@@ -23,8 +23,8 @@ private:
     constexpr std::array<int16_t, SPECTRUM_SIZE> _init_cos_table();
     constexpr std::array<int16_t, LOG_CNT> _init_log_table();
 
-    std::array<int16_t, LOG_CNT> _log_table = _init_log_table();
-    std::array<int16_t, SPECTRUM_SIZE> _cos_table = _init_cos_table();
+    const std::array<int16_t, LOG_CNT> _log_table = _init_log_table();
+    const std::array<int16_t, SPECTRUM_SIZE> _cos_table = _init_cos_table();
 
     uint16_t _gain;
     uint16_t _gate;

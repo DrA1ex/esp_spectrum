@@ -1,20 +1,21 @@
 #include <Arduino.h>
-
-#include <ESP8266WiFi.h>
 #include <Adafruit_GFX.h>
+#include <ESP8266WiFi.h>
 #include <Max72xxPanel.h>
 
 #include "debug.h"
+
+#include "misc/resample.h"
 #include "misc/spectrum.h"
 
-void populate_data(uint16_t *result);
-void dft(const uint16_t *data, uint16_t *result);
+constexpr int MATRIX_PIN_CS = 5;
+constexpr int MATRIX_WIDTH = 1;
+constexpr int MATRIX_HEIGHT = 4;
 
-const int pinCS = 5;
-const int numberOfHorizontalDisplays = 1;
-const int numberOfVerticalDisplays = 4;
+constexpr int MATRIX_ROTATION = 1;
+constexpr int MATRIX_INTENSITY = 10;
 
-Max72xxPanel matrix = Max72xxPanel(pinCS, numberOfHorizontalDisplays, numberOfVerticalDisplays);
+Max72xxPanel matrix = Max72xxPanel(MATRIX_PIN_CS, MATRIX_WIDTH, MATRIX_HEIGHT);
 
 const uint16_t FFT_SAMPLE_RATE = 9400;
 const uint16_t FFT_SAMPLE_INTERVAL_US = (uint32_t) 1000000 / FFT_SAMPLE_RATE;
@@ -24,15 +25,15 @@ const uint16_t FFT_GAIN = 10;
 const int16_t FFT_GATE = 0;
 
 SpectrumAnalyzer<FFT_SIZE> spectrum_analyzer(FFT_GAIN, FFT_GATE);
-
 const uint16_t FFT_OUT_SIZE = spectrum_analyzer.SPECTRUM_SIZE;
+
+Resample<MATRIX_HEIGHT * 8, FFT_OUT_SIZE> resample(FFT_SAMPLE_RATE / FFT_OUT_SIZE, FFT_SAMPLE_RATE);
+
 
 const int fft_update_period = 1000 / 15;
 const int render_interval = 1000 / 30;
 
 unsigned long last_fft_update = 0;
-
-static int bucket_index[numberOfVerticalDisplays * 8];
 
 void setup() {
 #if defined(DEBUG)
@@ -42,28 +43,13 @@ void setup() {
 
     WiFi.mode(WIFI_OFF);
 
-    matrix.setIntensity(10);
-    matrix.setRotation(1);
-
-    matrix.fillScreen(LOW);
-
-    float max_freq = FFT_SAMPLE_RATE;
-    float min_freq = max_freq / FFT_OUT_SIZE;
-    float octave_step = pow(max_freq / min_freq, 1.f / matrix.width());
-
-    bucket_index[0] = 0;
-
-    float prev_bucket_value = min_freq;
-    for (int i = 1; i < matrix.width() - 1; ++i) {
-        float value = prev_bucket_value * octave_step;
-        bucket_index[i] = floor(FFT_OUT_SIZE * value / max_freq);
-        prev_bucket_value = value;
-    }
-
-    bucket_index[matrix.width() - 1] = FFT_OUT_SIZE - 1;
+    matrix.setIntensity(MATRIX_INTENSITY);
+    matrix.setRotation(MATRIX_ROTATION);
 
     D_PRINT("Initialized");
 }
+
+void populate_data(uint16_t *result);
 
 static uint16_t fft_1[FFT_OUT_SIZE];
 static uint16_t fft_2[FFT_OUT_SIZE];
@@ -79,7 +65,7 @@ void loop() {
 
     int prev_index = 0;
     for (int16_t i = 0; i < matrix.width(); ++i) {
-        const int index = bucket_index[i];
+        const int index = resample.index_table[i];
 
         int32_t accumulated = 0;
         int32_t significant_cnt = 0;
