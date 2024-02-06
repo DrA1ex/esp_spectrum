@@ -51,6 +51,7 @@ void setup() {
 }
 
 void populate_data(uint16_t *result);
+void render();
 
 static uint16_t fft_1[FFT_OUT_SIZE];
 static uint16_t fft_2[FFT_OUT_SIZE];
@@ -62,31 +63,7 @@ uint8_t k = 0;
 void loop() {
     const auto start = millis();
 
-    matrix.fillScreen(LOW);
-
-    int prev_index = 0;
-    for (int16_t i = 0; i < matrix.width(); ++i) {
-        const int index = resample.index_table[i];
-
-        int32_t accumulated = 0;
-        int32_t significant_cnt = 0;
-        for (int j = prev_index; j <= index; ++j) {
-            const auto value = prev_fft[j] - ((int32_t) prev_fft[j] - current_fft[j]) * k / 255;
-            accumulated += value;
-
-            if (value >= FFT_GATE) ++significant_cnt;
-        }
-
-        if (significant_cnt > 0) accumulated /= significant_cnt;
-        else accumulated = 0;
-
-        const auto height = (int16_t) (accumulated * matrix.height() / spectrum_analyzer.MAX_VALUE);
-        matrix.drawLine(i, matrix.height(), i, matrix.height() - height, HIGH);
-
-        prev_index = index;
-    }
-
-    matrix.write();
+    render();
 
     if (start - last_fft_update >= fft_update_period) {
         uint16_t *tmp = current_fft;
@@ -104,7 +81,7 @@ void loop() {
     if (elapsed < render_interval) {
         delay(render_interval - elapsed);
     } else {
-        D_PRINTF("OMG! Too long: %lu\n", elapsed);
+        D_PRINTF("OMG! Too long: %lu ms\n", elapsed);
     }
 }
 
@@ -138,4 +115,32 @@ void populate_data(uint16_t *result) {
     if (g_max > 0) g_max -= 1;
 
     D_PRINTF("Spectral processing: %lu us\n", micros() - t_begin);
+}
+
+void render() {
+    matrix.fillScreen(LOW);
+
+    int prev_index = 0;
+    for (int16_t i = 0; i < matrix.width(); ++i) {
+        const int index = resample.index_table[i];
+
+        int32_t accumulated = 0;
+        int32_t significant_cnt = 0;
+        for (int j = prev_index; j <= index; ++j) {
+            const auto value = prev_fft[j] - ((int32_t) prev_fft[j] - current_fft[j]) * k / 255;
+            accumulated += value;
+
+            if (value >= FFT_GATE) ++significant_cnt;
+        }
+
+        if (significant_cnt > 0) accumulated /= significant_cnt;
+        else accumulated = 0;
+
+        const auto height = (int16_t) (accumulated * matrix.height() / spectrum_analyzer.MAX_VALUE);
+        matrix.drawLine(i, matrix.height(), i, matrix.height() - height, HIGH);
+
+        prev_index = index;
+    }
+
+    matrix.write();
 }
