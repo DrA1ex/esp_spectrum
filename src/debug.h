@@ -2,6 +2,10 @@
 
 #define __DEBUG_LEVEL_VERBOSE 0
 
+#ifndef DEBUG_LEVEL
+#define DEBUG_LEVEL 1
+#endif
+
 #ifdef DEBUG
 #define D_PRINT(x) Serial.println(x)
 #define D_PRINTF(...) Serial.printf(__VA_ARGS__)
