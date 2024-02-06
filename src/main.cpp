@@ -17,7 +17,7 @@ Max72xxPanel matrix = Max72xxPanel(pinCS, numberOfHorizontalDisplays, numberOfVe
 
 const uint16_t FFT_SIZE = 128;
 const uint16_t FFT_GAIN = 10;
-const uint16_t FFT_GATE = 40;
+const uint16_t FFT_GATE = 0;
 
 const int fft_update_period = 1000 / 15;
 const int render_interval = 1000 / 30;
@@ -52,7 +52,7 @@ void setup() {
     }
 
     for (int i = 0; i < LOG_CNT; ++i) {
-        log10F[i] = (1 - log10(1 + 9.f * i / LOG_CNT)) * LOG_AMOUNT;
+        log10F[i] = log10(1 + 9.f * i / LOG_CNT) * LOG_AMOUNT;
     }
 
     for (int i = 0; i < matrix.width(); ++i) {
@@ -98,11 +98,11 @@ void loop() {
             const auto value = prev_fft[j] - ((int32_t) prev_fft[j] - current_fft[j]) * k / 255;
             accumulated += value;
 
-            if (value > FFT_GATE) ++significant_cnt;
+            if (value < LOG_AMOUNT - FFT_GATE) ++significant_cnt;
         }
 
         if (significant_cnt > 0) accumulated /= significant_cnt;
-        else accumulated = 0;
+        else accumulated = LOG_AMOUNT;
 
         const int height = accumulated * matrix.height() / LOG_AMOUNT;
         matrix.drawLine(i, matrix.height(), i, height, HIGH);
@@ -119,7 +119,7 @@ void loop() {
     }
 }
 
-static float g_max = 0, g_min = 1024;
+static uint16_t g_max = 0, g_min = 1024;
 
 void populate_data(uint16_t *result) {
     static uint16_t data[FFT_SIZE], out[FFT_SIZE / 2];
@@ -172,12 +172,12 @@ void populate_data(uint16_t *result) {
 
     for (int i = 0; i < FFT_SIZE / 2; ++i) {
         const auto signal = out[i] - g_min;
-        const float rel_value = g_peakToPeak > 0 ? signal / g_peakToPeak : 0;
-        result[i] = (1 - log10(1 + rel_value * 9)) * LOG_AMOUNT;
+        const uint16_t rel_value = g_peakToPeak > 0 ? signal * LOG_CNT / g_peakToPeak : 0;
+        result[i] = LOG_AMOUNT - log10F[rel_value];
     }
 
-    g_max -= 0.05;
-    g_min += 0.05;
+    g_min += 1;
+    if (g_max > 0) g_max -= 1;
 
     D_PRINTF("Spectral processing: %lu us\n", micros() - t_begin);
 }
