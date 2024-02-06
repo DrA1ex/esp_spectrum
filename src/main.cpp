@@ -84,23 +84,10 @@ static uint16_t fft_2[FFT_OUT_SIZE];
 
 uint16_t *current_fft = fft_1;
 uint16_t *prev_fft = fft_2;
+uint8_t k = 0;
 
 void loop() {
     const auto start = millis();
-
-    if (start - last_fft_update > fft_update_period) {
-        uint16_t *tmp = current_fft;
-        current_fft = prev_fft;
-        prev_fft = tmp;
-
-        populate_data(current_fft);
-        last_fft_update = start;
-    }
-
-
-    const uint8_t k = (start - last_fft_update) * 255 / fft_update_period;
-
-    const auto elapsed = millis() - start;
 
     matrix.fillScreen(LOW);
 
@@ -127,6 +114,19 @@ void loop() {
     }
 
     matrix.write();
+
+    if (start - last_fft_update >= fft_update_period) {
+        uint16_t *tmp = current_fft;
+        current_fft = prev_fft;
+        prev_fft = tmp;
+
+        populate_data(current_fft);
+        last_fft_update = start;
+    }
+
+    k = (start - last_fft_update) * 255 / fft_update_period;
+
+    const auto elapsed = millis() - start;
 
     if (elapsed < render_interval) {
         delay(render_interval - elapsed);
