@@ -7,6 +7,7 @@
 
 #include "misc/resample.h"
 #include "misc/spectrum.h"
+#include "misc/analog.h"
 
 constexpr int MATRIX_PIN_CS = 5;
 constexpr int MATRIX_WIDTH = 1;
@@ -112,42 +113,11 @@ static uint16_t g_max = 0, g_min = 1024;
 void populate_data(uint16_t *result) {
     static uint16_t data[FFT_SIZE];
 
-    auto t_begin = micros();
-    for (auto &value: data) {
-        auto t = micros();
-        value = analogRead(0);
-        auto delta = micros() - t;
-        if (delta < FFT_SAMPLE_INTERVAL_US) {
-            delayMicroseconds(FFT_SAMPLE_INTERVAL_US - delta);
-        }
-    }
-
-    // TOO FAST
-    //system_adc_read_fast(data, FFT_SIZE, 24);
-
-    {
-        int32_t d_min = 1024, d_max = 0;
-        for (auto value: data) {
-            if (value < d_min) d_min = value;
-            if (value > d_max) d_max = value;
-        }
-
-        VERBOSE(D_PRINTF("SIGNAL: %u..%u\n", d_min, d_max));
-    }
-
-    auto t_delta = micros() - t_begin;
-    VERBOSE(D_PRINTF("Data populating: %lu us\n", t_delta));
-    const auto sample_rate = 1000000 * FFT_SIZE / (micros() - t_begin);
-    VERBOSE(D_PRINTF("Sample rate: %lu Hz\n", sample_rate));
-    VERBOSE(D_PRINTF("Spectrum sample rate: %lu Hz, Band size: %lu Hz\n", sample_rate / 2, sample_rate / 2 / FFT_OUT_SIZE));
-
-    t_begin = micros();
+    read_analog_data(data, FFT_SIZE, FFT_SAMPLE_RATE);
 
     spectrum_analyzer.dft(data, result);
 
-    D_PRINTF("DFT: %lu us\n", micros() - t_begin);
-
-    t_begin = micros();
+    auto t_begin = micros();
 
     int32_t v_min = 1024, v_max = 0;
     for (int i = 0; i < FFT_OUT_SIZE; ++i) {

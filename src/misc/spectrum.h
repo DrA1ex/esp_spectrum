@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cctype>
 #include <cmath>
 
@@ -35,6 +36,8 @@ SpectrumAnalyzer<SampleSize>::SpectrumAnalyzer(uint16_t gain, uint16_t gate): _g
 
 template<uint16_t SampleSize>
 void SpectrumAnalyzer<SampleSize>::dft(const uint16_t *data, uint16_t *result) {
+    auto t_begin = micros();
+
     for (uint16_t freq = 0; freq < SPECTRUM_SIZE; ++freq) {
         int32_t freq_amp = 0;
 
@@ -47,6 +50,8 @@ void SpectrumAnalyzer<SampleSize>::dft(const uint16_t *data, uint16_t *result) {
 
     // TODO: 0-nth freq. always too big
     result[0] = result[1];
+
+    D_PRINTF("DFT: %lu us\n", micros() - t_begin);
 }
 
 template<uint16_t SampleSize>
