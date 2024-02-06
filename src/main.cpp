@@ -5,6 +5,7 @@
 #include <Max72xxPanel.h>
 
 #include "debug.h"
+#include "misc/spectrum.h"
 
 void populate_data(uint16_t *result);
 void dft(const uint16_t *data, uint16_t *result);
@@ -15,26 +16,21 @@ const int numberOfVerticalDisplays = 4;
 
 Max72xxPanel matrix = Max72xxPanel(pinCS, numberOfHorizontalDisplays, numberOfVerticalDisplays);
 
-const uint16_t FFT_SAMPLE_RATE = 9200;
+const uint16_t FFT_SAMPLE_RATE = 9400;
 const uint16_t FFT_SAMPLE_INTERVAL_US = (uint32_t) 1000000 / FFT_SAMPLE_RATE;
 
 const uint16_t FFT_SIZE = 128;
 const uint16_t FFT_GAIN = 10;
-const int16_t FFT_GATE = -1;
+const int16_t FFT_GATE = 0;
 
-const uint16_t FFT_OUT_SIZE = FFT_SIZE / 2;
+SpectrumAnalyzer<FFT_SIZE> spectrum_analyzer(FFT_GAIN, FFT_GATE);
+
+const uint16_t FFT_OUT_SIZE = spectrum_analyzer.SPECTRUM_SIZE;
 
 const int fft_update_period = 1000 / 15;
 const int render_interval = 1000 / 30;
 
 unsigned long last_fft_update = 0;
-
-const uint16_t COS_AMOUNT = 4096;
-static int16_t cosF[FFT_SIZE];
-
-const uint16_t LOG_AMOUNT = 4096;
-const uint16_t LOG_CNT = 255;
-static int16_t log10F[LOG_CNT];
 
 static int bucket_index[numberOfVerticalDisplays * 8];
 
@@ -50,16 +46,6 @@ void setup() {
     matrix.setRotation(1);
 
     matrix.fillScreen(LOW);
-
-    const float const_part = 2 * PI / FFT_SIZE;
-    for (uint16_t i = 0; i < FFT_SIZE; ++i) {
-        cosF[i] = cosf(const_part * i) * COS_AMOUNT;
-    }
-
-    for (int i = 0; i < LOG_CNT; ++i) {
-        log10F[i] = log10(1 + 9.f * i / LOG_CNT) * LOG_AMOUNT;
-    }
-
 
     float max_freq = FFT_SAMPLE_RATE;
     float min_freq = max_freq / FFT_OUT_SIZE;
@@ -92,7 +78,7 @@ void loop() {
     matrix.fillScreen(LOW);
 
     int prev_index = 0;
-    for (int i = 0; i < matrix.width(); ++i) {
+    for (int16_t i = 0; i < matrix.width(); ++i) {
         const int index = bucket_index[i];
 
         int32_t accumulated = 0;
@@ -101,14 +87,14 @@ void loop() {
             const auto value = prev_fft[j] - ((int32_t) prev_fft[j] - current_fft[j]) * k / 255;
             accumulated += value;
 
-            if (value < LOG_AMOUNT - FFT_GATE) ++significant_cnt;
+            if (value >= FFT_GATE) ++significant_cnt;
         }
 
         if (significant_cnt > 0) accumulated /= significant_cnt;
-        else accumulated = LOG_AMOUNT;
+        else accumulated = 0;
 
-        const int height = accumulated * matrix.height() / LOG_AMOUNT;
-        matrix.drawLine(i, matrix.height(), i, height, HIGH);
+        const auto height = (int16_t) (accumulated * matrix.height() / spectrum_analyzer.MAX_VALUE);
+        matrix.drawLine(i, matrix.height(), i, matrix.height() - height, HIGH);
 
         prev_index = index;
     }
@@ -138,7 +124,7 @@ void loop() {
 static uint16_t g_max = 0, g_min = 1024;
 
 void populate_data(uint16_t *result) {
-    static uint16_t data[FFT_SIZE], out[FFT_OUT_SIZE];
+    static uint16_t data[FFT_SIZE];
 
     auto t_begin = micros();
     for (auto &value: data) {
@@ -171,15 +157,16 @@ void populate_data(uint16_t *result) {
 
     t_begin = micros();
 
-    dft(data, out);
-    out[0] = out[1];
+    spectrum_analyzer.dft(data, result);
 
     D_PRINTF("DFT: %lu us\n", micros() - t_begin);
 
     t_begin = micros();
 
     int32_t v_min = 1024, v_max = 0;
-    for (auto value: out) {
+    for (int i = 0; i < FFT_OUT_SIZE; ++i) {
+        const auto value = result[i];
+
         if (value < v_min) v_min = value;
         if (value > v_max) v_max = value;
     }
@@ -189,27 +176,10 @@ void populate_data(uint16_t *result) {
 
     VERBOSE(D_PRINTF("SPECTRAL: %u..%u\n", v_min, v_max));
 
-    auto g_peakToPeak = g_max - g_min;
-
-    for (int i = 0; i < FFT_OUT_SIZE; ++i) {
-        const auto signal = out[i] - g_min;
-        const uint16_t rel_value = g_peakToPeak > 0 ? signal * LOG_CNT / g_peakToPeak : 0;
-        result[i] = LOG_AMOUNT - log10F[rel_value];
-    }
+    spectrum_analyzer.scale(result, g_min, g_max);
 
     g_min += 1;
     if (g_max > 0) g_max -= 1;
 
     D_PRINTF("Spectral processing: %lu us\n", micros() - t_begin);
-}
-void dft(const uint16_t *data, uint16_t *result) {
-    for (uint16_t freq = 0; freq < FFT_OUT_SIZE; ++freq) {
-        int32_t freq_amp = 0;
-
-        for (uint16_t i = 0; i < FFT_SIZE; ++i) {
-            freq_amp += (int32_t) data[i] * cosF[(freq * i) % FFT_SIZE];
-        }
-
-        result[freq] = abs(freq_amp) * FFT_GAIN / COS_AMOUNT / FFT_OUT_SIZE;
-    }
 }
