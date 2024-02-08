@@ -21,11 +21,11 @@ public:
     void scale(uint16_t *spectrum, uint16_t min, uint16_t max);
 
 private:
-    constexpr std::array<int16_t, SPECTRUM_SIZE> _init_cos_table();
     constexpr std::array<int16_t, LOG_CNT> _init_log_table();
+    constexpr std::array<int16_t, SampleSize> _init_cos_table();
 
     const std::array<int16_t, LOG_CNT> _log_table = _init_log_table();
-    const std::array<int16_t, SPECTRUM_SIZE> _cos_table = _init_cos_table();
+    const std::array<int16_t, SampleSize> _cos_table = _init_cos_table();
 
     uint16_t _gain;
     uint16_t _gate;
@@ -66,10 +66,10 @@ void SpectrumAnalyzer<SampleSize>::scale(uint16_t *spectrum, uint16_t min, uint1
 }
 
 template<uint16_t SampleSize>
-constexpr std::array<int16_t, SpectrumAnalyzer<SampleSize>::SPECTRUM_SIZE> SpectrumAnalyzer<SampleSize>::_init_cos_table() {
-    const float const_part = 2 * M_PI / SAMPLE_SIZE;
+constexpr std::array<int16_t, SampleSize> SpectrumAnalyzer<SampleSize>::_init_cos_table() {
+    const float const_part = 2 * M_PI / SampleSize;
 
-    std::array<int16_t, SPECTRUM_SIZE> a{};
+    std::array<int16_t, SampleSize> a{};
     for (size_t i = 0; i < a.size(); ++i) {
         a[i] = cosf(const_part * i) * COS_AMOUNT;
     }
