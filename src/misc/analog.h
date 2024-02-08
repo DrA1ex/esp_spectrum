@@ -11,7 +11,7 @@ void read_analog_data(uint16_t *data, size_t size, uint16_t sample_rate) {
     //system_adc_read_fast(data, size, 24);
 
     auto t_begin = micros();
-    for (int i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
         auto t = micros();
         data[i] = analogRead(0);
 
@@ -23,7 +23,7 @@ void read_analog_data(uint16_t *data, size_t size, uint16_t sample_rate) {
 
     VERBOSE(([&] {
         int32_t d_min = 1024, d_max = 0;
-        for (int i = 0; i < size; ++i) {
+        for (size_t i = 0; i < size; ++i) {
             const auto value = data[i];
 
             if (value < d_min) d_min = value;

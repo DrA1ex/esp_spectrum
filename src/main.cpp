@@ -5,9 +5,10 @@
 
 #include "debug.h"
 
+#include "misc/analog.h"
 #include "misc/resample.h"
 #include "misc/spectrum.h"
-#include "misc/analog.h"
+#include "misc/window.h"
 
 constexpr int MATRIX_PIN_CS = 5;
 constexpr int MATRIX_WIDTH = 1;
@@ -16,23 +17,27 @@ constexpr int MATRIX_HEIGHT = 4;
 constexpr int MATRIX_ROTATION = 1;
 constexpr int MATRIX_INTENSITY = 10;
 
-Max72xxPanel matrix = Max72xxPanel(MATRIX_PIN_CS, MATRIX_WIDTH, MATRIX_HEIGHT);
-
 const uint16_t FFT_SAMPLE_RATE = 9400;
-const uint16_t FFT_SAMPLE_INTERVAL_US = (uint32_t) 1000000 / FFT_SAMPLE_RATE;
 
 const uint16_t FFT_SIZE = 128;
 const uint16_t FFT_GAIN = 10;
 const int16_t FFT_GATE = 0;
+
+const int FFT_UPDATE_INTERVAL = 1000 / 15;
+const int RENDER_INTERVAL = 1000 / 30;
+
+const uint16_t WINDOW_DURATION = 5000;
+const uint16_t WINDOW_SAMPLES = WINDOW_DURATION / FFT_UPDATE_INTERVAL;
+
+Max72xxPanel matrix = Max72xxPanel(MATRIX_PIN_CS, MATRIX_WIDTH, MATRIX_HEIGHT);
 
 SpectrumAnalyzer<FFT_SIZE> spectrum_analyzer(FFT_GAIN, FFT_GATE);
 const uint16_t FFT_OUT_SIZE = spectrum_analyzer.SPECTRUM_SIZE;
 
 Resample<MATRIX_HEIGHT * 8, FFT_OUT_SIZE> resample(FFT_SAMPLE_RATE / FFT_OUT_SIZE, FFT_SAMPLE_RATE);
 
-
-const int fft_update_period = 1000 / 15;
-const int render_interval = 1000 / 30;
+Window<WindowMode::MAX> window_max(WINDOW_SAMPLES);
+Window<WindowMode::MIN> window_min(WINDOW_SAMPLES);
 
 unsigned long last_fft_update = 0;
 
@@ -65,7 +70,7 @@ void loop() {
 
     render();
 
-    if (start - last_fft_update >= fft_update_period) {
+    if (start - last_fft_update >= FFT_UPDATE_INTERVAL) {
         uint16_t *tmp = current_fft;
         current_fft = prev_fft;
         prev_fft = tmp;
@@ -74,18 +79,16 @@ void loop() {
         last_fft_update = start;
     }
 
-    k = (start - last_fft_update) * 255 / fft_update_period;
+    k = (start - last_fft_update) * 255 / FFT_UPDATE_INTERVAL;
 
     const auto elapsed = millis() - start;
 
-    if (elapsed < render_interval) {
-        delay(render_interval - elapsed);
+    if (elapsed < RENDER_INTERVAL) {
+        delay(RENDER_INTERVAL - elapsed);
     } else {
         D_PRINTF("OMG! Too long: %lu ms\n", elapsed);
     }
 }
-
-static uint16_t g_max = 0, g_min = 1024;
 
 void populate_data(uint16_t *result) {
     static uint16_t data[FFT_SIZE];
@@ -104,15 +107,14 @@ void populate_data(uint16_t *result) {
         if (value > v_max) v_max = value;
     }
 
-    if (v_min < g_min) g_min = v_min;
-    if (v_max > g_max) g_max = v_max;
+    window_max.add(v_max);
+    window_min.add(v_min);
 
     VERBOSE(D_PRINTF("SPECTRAL: %u..%u\n", v_min, v_max));
 
-    spectrum_analyzer.scale(result, g_min, g_max);
+    VERBOSE(D_PRINTF("WINDOW: %u..%u\n", window_min.get(), window_max.get()));
 
-    g_min += 1;
-    if (g_max > 0) g_max -= 1;
+    spectrum_analyzer.scale(result, window_min.get(), window_max.get());
 
     D_PRINTF("Spectral processing: %lu us\n", micros() - t_begin);
 }
