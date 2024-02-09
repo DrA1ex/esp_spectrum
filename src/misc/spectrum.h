@@ -17,7 +17,7 @@ public:
 
     static const uint16_t MAX_VALUE = 4096;
 
-    explicit SpectrumAnalyzer(uint16_t gain = 1, uint16_t gate = 0);
+    explicit SpectrumAnalyzer(uint16_t gain = 1);
 
     void dft(const AnalogSample &data, uint16_t *result);
     void scale(uint16_t *spectrum, uint16_t min, uint16_t max);
@@ -30,11 +30,10 @@ private:
     const std::array<int16_t, SampleSize> _cos_table = _init_cos_table();
 
     uint16_t _gain;
-    uint16_t _gate;
 };
 
 template<uint16_t SampleSize>
-SpectrumAnalyzer<SampleSize>::SpectrumAnalyzer(uint16_t gain, uint16_t gate): _gain(gain), _gate(gate) {}
+SpectrumAnalyzer<SampleSize>::SpectrumAnalyzer(uint16_t gain): _gain(gain) {}
 
 template<uint16_t SampleSize>
 void SpectrumAnalyzer<SampleSize>::dft(const AnalogSample &data, uint16_t *result) {

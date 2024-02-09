@@ -31,7 +31,7 @@ const uint16_t WINDOW_SAMPLES = WINDOW_DURATION / FFT_UPDATE_INTERVAL;
 
 Max72xxPanel matrix = Max72xxPanel(MATRIX_PIN_CS, MATRIX_WIDTH, MATRIX_HEIGHT);
 
-SpectrumAnalyzer<FFT_SIZE> spectrum_analyzer(FFT_GAIN, FFT_GATE);
+SpectrumAnalyzer<FFT_SIZE> spectrum_analyzer(FFT_GAIN);
 const uint16_t FFT_OUT_SIZE = spectrum_analyzer.SPECTRUM_SIZE;
 
 typedef Resample<MATRIX_HEIGHT * 8, FFT_OUT_SIZE> ResampleT;

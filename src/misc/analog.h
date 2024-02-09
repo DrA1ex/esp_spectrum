@@ -15,6 +15,8 @@ public:
     AnalogSample(const AnalogSample &) = delete;
     AnalogSample &operator=(const AnalogSample &) = delete;
 
+    [[nodiscard]] inline size_t size() const { return _size; }
+
     inline uint16_t &operator[](size_t index) { return const_cast<uint16_t &>(std::as_const(*this)[index]); }
 
     inline const uint16_t &operator[](size_t index) const {
