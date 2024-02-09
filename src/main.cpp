@@ -23,8 +23,11 @@ const uint16_t FFT_SIZE = 256;
 const uint16_t FFT_GAIN = 10;
 const int16_t FFT_GATE = 0;
 
-const int FFT_UPDATE_INTERVAL = 1000 / 15;
-const int RENDER_INTERVAL = 1000 / 30;
+const uint16_t FFT_UPDATE_INTERVAL = 1000 / 15;
+const uint16_t RENDER_INTERVAL = 1000 / 30;
+
+const uint16_t ESTIMATED_SAMPLE_READ_TIME = (1000 * FFT_SIZE / FFT_SAMPLE_RATE);
+const uint16_t READ_INTERVAL = max(0, FFT_UPDATE_INTERVAL - (int32_t) ESTIMATED_SAMPLE_READ_TIME * 2);
 
 const uint16_t WINDOW_DURATION = 5000;
 const uint16_t WINDOW_SAMPLES = WINDOW_DURATION / FFT_UPDATE_INTERVAL;
@@ -60,7 +63,6 @@ void setup() {
     D_PRINT("Initialized");
 }
 
-void populate_data(uint16_t *result);
 void render();
 
 static uint16_t fft_1[FFT_OUT_SIZE];
@@ -77,7 +79,9 @@ void loop() {
         last_render = millis();
     }
 
-    reader.tick();
+    if (millis() - last_fft_update >= READ_INTERVAL) {
+        reader.read_if_needed();
+    }
 
     if (millis() - last_fft_update >= FFT_UPDATE_INTERVAL) {
         const auto start = millis();
@@ -86,18 +90,14 @@ void loop() {
         current_fft = prev_fft;
         prev_fft = tmp;
 
-        populate_data(current_fft);
+        spectrum_analyzer.dft(reader.data(), current_fft);
+        log_scale.scale(current_fft, FFT_OUT_SIZE);
+
         last_fft_update = start;
 
         const auto elapsed = millis() - start;
         if (elapsed > RENDER_INTERVAL) D_PRINTF("OMG! Too long: %lu ms\n", elapsed);
     }
-}
-
-void populate_data(uint16_t *result) {
-    spectrum_analyzer.dft(reader.get(), result);
-
-    log_scale.scale(result, FFT_OUT_SIZE);
 }
 
 void render() {

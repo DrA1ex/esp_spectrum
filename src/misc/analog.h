@@ -16,12 +16,17 @@ public:
     AnalogSample &operator=(const AnalogSample &) = delete;
 
     [[nodiscard]] inline size_t size() const { return _size; }
+    [[nodiscard]] inline size_t offset() const { return _offset; }
 
-    inline uint16_t &operator[](size_t index) { return const_cast<uint16_t &>(std::as_const(*this)[index]); }
+    [[nodiscard]] inline const uint16_t *data() const { return _data; }
 
-    inline const uint16_t &operator[](size_t index) const {
-        auto _pos = index + _offset;
-        return _data[_pos >= _size ? _pos - _size : _pos];
+    inline uint16_t &operator[](size_t index) { return _data[_get_index(index)]; }
+    inline const uint16_t &operator[](size_t index) const { return _data[_get_index(index)]; }
+
+private:
+    [[nodiscard]] inline size_t _get_index(size_t index) const {
+        const auto _pos = index + _offset;
+        return _pos >= _size ? _pos - _size : _pos;
     }
 };
 
@@ -40,9 +45,14 @@ public:
     explicit AnalogReader(size_t size, uint8_t pin, uint16_t sample_rate);
     ~AnalogReader();
 
-    void tick();
+    bool read_if_needed();
 
-    [[nodiscard]] inline AnalogSample get() { return {_data, _size, _index}; };
+    [[nodiscard]] const uint16_t *data() { return this->_rearrange(), _data; }
+    [[nodiscard]] inline AnalogSample raw_data() { return {_data, _size, _index}; };
+
+private:
+    void _rearrange();
+    static void _reverse(uint16_t *data, size_t left, size_t right);
 };
 
 AnalogReader::AnalogReader(size_t size, uint8_t pin, uint16_t sample_rate) : _size(size), _pin(pin), _sample_rate(sample_rate) {
@@ -54,11 +64,32 @@ AnalogReader::~AnalogReader() {
     delete[] _data;
 }
 
-void AnalogReader::tick() {
-    if (micros() - _last_read_time < _read_interval) return;
+bool AnalogReader::read_if_needed() {
+    if (micros() - _last_read_time < _read_interval) return false;
 
     _data[_index] = analogRead(_pin);
     _last_read_time = micros();
 
     if (++_index == _size) _index = 0;
+
+    return true;
+}
+
+void AnalogReader::_rearrange() {
+    if (_index == 0) return;
+
+    _reverse(_data, 0, _size - 1);
+    _reverse(_data, 0, _size - _index - 1);
+    _reverse(_data, _size - _index, _size - 1);
+
+    _index = 0;
+}
+
+void AnalogReader::_reverse(uint16_t *data, size_t left, size_t right) {
+    while (left < right) {
+        std::swap(data[left], data[right]);
+
+        left++;
+        right--;
+    }
 }

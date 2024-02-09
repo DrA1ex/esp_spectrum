@@ -12,11 +12,11 @@ public:
     static constexpr uint16_t SAMPLE_SIZE = SampleSize;
     static constexpr uint16_t SPECTRUM_SIZE = SampleSize / 2;
 
-    static const uint16_t COS_AMOUNT = 4096;
+    static constexpr uint16_t COS_AMOUNT = 4096;
 
     explicit SpectrumAnalyzer(uint16_t gain = 1);
 
-    void dft(const AnalogSample &data, uint16_t *result);
+    void dft(const uint16_t *data, uint16_t *result);
 
 private:
     constexpr std::array<int16_t, SampleSize> _init_cos_table();
@@ -30,7 +30,7 @@ template<uint16_t SampleSize>
 SpectrumAnalyzer<SampleSize>::SpectrumAnalyzer(uint16_t gain): _gain(gain) {}
 
 template<uint16_t SampleSize>
-void SpectrumAnalyzer<SampleSize>::dft(const AnalogSample &data, uint16_t *result) {
+void SpectrumAnalyzer<SampleSize>::dft(const uint16_t *data, uint16_t *result) {
     auto t_begin = micros();
 
     for (uint16_t freq = 0; freq < SPECTRUM_SIZE; ++freq) {
