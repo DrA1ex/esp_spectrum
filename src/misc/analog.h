@@ -4,41 +4,59 @@
 
 #include "debug.h"
 
-void read_analog_data(uint16_t *data, size_t size, uint16_t sample_rate) {
-    const auto sample_interval = (uint32_t) 1000000 / sample_rate;
+class AnalogSample {
+    uint16_t *_data;
+    size_t _size;
+    size_t _offset;
 
-    // TOO FAST
-    //system_adc_read_fast(data, size, 24);
+public:
+    AnalogSample(uint16_t *data, size_t size, size_t offset) : _data(data), _size(size), _offset(offset) {};
 
-    auto t_begin = micros();
-    for (size_t i = 0; i < size; ++i) {
-        auto t = micros();
-        data[i] = analogRead(0);
+    AnalogSample(const AnalogSample &) = delete;
+    AnalogSample &operator=(const AnalogSample &) = delete;
 
-        auto delta = micros() - t;
-        if (delta < sample_interval) {
-            delayMicroseconds(sample_interval - delta);
-        }
+    inline uint16_t &operator[](size_t index) { return const_cast<uint16_t &>(std::as_const(*this)[index]); }
+
+    inline const uint16_t &operator[](size_t index) const {
+        auto _pos = index + _offset;
+        return _data[_pos >= _size ? _pos - _size : _pos];
     }
+};
 
-    VERBOSE(([&] {
-        int32_t d_min = 1024, d_max = 0;
-        for (size_t i = 0; i < size; ++i) {
-            const auto value = data[i];
+class AnalogReader {
+    size_t _size;
+    uint16_t *_data;
 
-            if (value < d_min) d_min = value;
-            if (value > d_max) d_max = value;
-        }
+    uint8_t _pin;
+    uint16_t _sample_rate;
+    uint16_t _read_interval;
 
-        D_PRINTF("SIGNAL: %u..%u\n", d_min, d_max);
-    })());
+    unsigned long _last_read_time = 0;
+    size_t _index = 0;
 
-    VERBOSE(([&] {
-        auto t_delta = micros() - t_begin;
-        D_PRINTF("Data populating: %lu us\n", t_delta);
+public:
+    explicit AnalogReader(size_t size, uint8_t pin, uint16_t sample_rate);
+    ~AnalogReader();
 
-        const auto sample_rate = 1000000 * size / (micros() - t_begin);
-        D_PRINTF("Sample rate: %lu Hz\n", sample_rate);
-        D_PRINTF("Spectrum sample rate: %lu Hz, Band size: %lu Hz\n", sample_rate / 2, sample_rate / 2 / (size / 2));
-    })());
+    void tick();
+
+    [[nodiscard]] inline AnalogSample get() { return {_data, _size, _index}; };
+};
+
+AnalogReader::AnalogReader(size_t size, uint8_t pin, uint16_t sample_rate) : _size(size), _pin(pin), _sample_rate(sample_rate) {
+    _data = new uint16_t[size];
+    _read_interval = (uint32_t) 1000000 / _sample_rate;
+}
+
+AnalogReader::~AnalogReader() {
+    delete[] _data;
+}
+
+void AnalogReader::tick() {
+    if (micros() - _last_read_time < _read_interval) return;
+
+    _data[_index] = analogRead(_pin);
+    _last_read_time = micros();
+
+    if (++_index == _size) _index = 0;
 }

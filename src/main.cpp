@@ -19,7 +19,7 @@ constexpr int MATRIX_INTENSITY = 10;
 
 const uint16_t FFT_SAMPLE_RATE = 9400;
 
-const uint16_t FFT_SIZE = 128;
+const uint16_t FFT_SIZE = 256;
 const uint16_t FFT_GAIN = 10;
 const int16_t FFT_GATE = 0;
 
@@ -34,10 +34,13 @@ Max72xxPanel matrix = Max72xxPanel(MATRIX_PIN_CS, MATRIX_WIDTH, MATRIX_HEIGHT);
 SpectrumAnalyzer<FFT_SIZE> spectrum_analyzer(FFT_GAIN, FFT_GATE);
 const uint16_t FFT_OUT_SIZE = spectrum_analyzer.SPECTRUM_SIZE;
 
-Resample<MATRIX_HEIGHT * 8, FFT_OUT_SIZE> resample(FFT_SAMPLE_RATE / FFT_OUT_SIZE, FFT_SAMPLE_RATE);
+typedef Resample<MATRIX_HEIGHT * 8, FFT_OUT_SIZE> ResampleT;
+ResampleT *resample;
 
 Window<WindowMode::MAX> window_max(WINDOW_SAMPLES);
 Window<WindowMode::MIN> window_min(WINDOW_SAMPLES);
+
+AnalogReader reader(FFT_SIZE, A0, FFT_SAMPLE_RATE);
 
 unsigned long last_fft_update = 0;
 
@@ -52,6 +55,8 @@ void setup() {
     matrix.setIntensity(MATRIX_INTENSITY);
     matrix.setRotation(MATRIX_ROTATION);
 
+    resample = new ResampleT(FFT_SAMPLE_RATE / FFT_OUT_SIZE, FFT_SAMPLE_RATE);
+
     D_PRINT("Initialized");
 }
 
@@ -63,39 +68,34 @@ static uint16_t fft_2[FFT_OUT_SIZE];
 
 uint16_t *current_fft = fft_1;
 uint16_t *prev_fft = fft_2;
-uint8_t k = 0;
+
+unsigned long last_render = 0;
 
 void loop() {
-    const auto start = millis();
+    if (millis() - last_render >= RENDER_INTERVAL) {
+        render();
+        last_render = millis();
+    }
 
-    render();
+    reader.tick();
 
-    if (start - last_fft_update >= FFT_UPDATE_INTERVAL) {
+    if (millis() - last_fft_update >= FFT_UPDATE_INTERVAL) {
+        const auto start = millis();
+
         uint16_t *tmp = current_fft;
         current_fft = prev_fft;
         prev_fft = tmp;
 
         populate_data(current_fft);
         last_fft_update = start;
-    }
 
-    k = (start - last_fft_update) * 255 / FFT_UPDATE_INTERVAL;
-
-    const auto elapsed = millis() - start;
-
-    if (elapsed < RENDER_INTERVAL) {
-        delay(RENDER_INTERVAL - elapsed);
-    } else {
-        D_PRINTF("OMG! Too long: %lu ms\n", elapsed);
+        const auto elapsed = millis() - start;
+        if (elapsed > RENDER_INTERVAL) D_PRINTF("OMG! Too long: %lu ms\n", elapsed);
     }
 }
 
 void populate_data(uint16_t *result) {
-    static uint16_t data[FFT_SIZE];
-
-    read_analog_data(data, FFT_SIZE, FFT_SAMPLE_RATE);
-
-    spectrum_analyzer.dft(data, result);
+    spectrum_analyzer.dft(reader.get(), result);
 
     auto t_begin = micros();
 
@@ -122,9 +122,11 @@ void populate_data(uint16_t *result) {
 void render() {
     matrix.fillScreen(LOW);
 
+    const auto k = min<uint8_t>(255, (millis() - last_fft_update) * 255 / FFT_UPDATE_INTERVAL);
+
     int prev_index = 0;
     for (int16_t i = 0; i < matrix.width(); ++i) {
-        const int index = resample.index_table[i];
+        const int index = (*resample)[i];
 
         int32_t accumulated = 0;
         int32_t significant_cnt = 0;

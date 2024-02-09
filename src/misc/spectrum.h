@@ -6,6 +6,8 @@
 
 template<uint16_t SampleSize>
 class SpectrumAnalyzer {
+    static_assert(SampleSize > 0 && SampleSize % 2 == 0, "SampleSize must be power of 2");
+
 public:
     static constexpr uint16_t SAMPLE_SIZE = SampleSize;
     static constexpr uint16_t SPECTRUM_SIZE = SampleSize / 2;
@@ -17,7 +19,7 @@ public:
 
     explicit SpectrumAnalyzer(uint16_t gain = 1, uint16_t gate = 0);
 
-    void dft(const uint16_t *data, uint16_t *result);
+    void dft(const AnalogSample &data, uint16_t *result);
     void scale(uint16_t *spectrum, uint16_t min, uint16_t max);
 
 private:
@@ -35,7 +37,7 @@ template<uint16_t SampleSize>
 SpectrumAnalyzer<SampleSize>::SpectrumAnalyzer(uint16_t gain, uint16_t gate): _gain(gain), _gate(gate) {}
 
 template<uint16_t SampleSize>
-void SpectrumAnalyzer<SampleSize>::dft(const uint16_t *data, uint16_t *result) {
+void SpectrumAnalyzer<SampleSize>::dft(const AnalogSample &data, uint16_t *result) {
     auto t_begin = micros();
 
     for (uint16_t freq = 0; freq < SPECTRUM_SIZE; ++freq) {
