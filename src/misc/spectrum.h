@@ -13,20 +13,14 @@ public:
     static constexpr uint16_t SPECTRUM_SIZE = SampleSize / 2;
 
     static const uint16_t COS_AMOUNT = 4096;
-    static const uint16_t LOG_CNT = 256;
-
-    static const uint16_t MAX_VALUE = 4096;
 
     explicit SpectrumAnalyzer(uint16_t gain = 1);
 
     void dft(const AnalogSample &data, uint16_t *result);
-    void scale(uint16_t *spectrum, uint16_t min, uint16_t max);
 
 private:
-    constexpr std::array<int16_t, LOG_CNT> _init_log_table();
     constexpr std::array<int16_t, SampleSize> _init_cos_table();
 
-    const std::array<int16_t, LOG_CNT> _log_table = _init_log_table();
     const std::array<int16_t, SampleSize> _cos_table = _init_cos_table();
 
     uint16_t _gain;
@@ -56,33 +50,12 @@ void SpectrumAnalyzer<SampleSize>::dft(const AnalogSample &data, uint16_t *resul
 }
 
 template<uint16_t SampleSize>
-void SpectrumAnalyzer<SampleSize>::scale(uint16_t *spectrum, uint16_t min, uint16_t max) {
-    const auto width = max - min;
-    if (width == 0) return;
-
-    for (int i = 0; i < SPECTRUM_SIZE; ++i) {
-        const uint16_t rel_value = (spectrum[i] - min) * LOG_CNT / width;
-        spectrum[i] = _log_table[rel_value];
-    }
-}
-
-template<uint16_t SampleSize>
 constexpr std::array<int16_t, SampleSize> SpectrumAnalyzer<SampleSize>::_init_cos_table() {
     const float const_part = 2 * M_PI / SampleSize;
 
     std::array<int16_t, SampleSize> a{};
     for (size_t i = 0; i < a.size(); ++i) {
-        a[i] = cosf(const_part * i) * COS_AMOUNT;
+        a[i] = cosf(const_part * (float) i) * COS_AMOUNT;
     }
-    return a;
-}
-
-template<uint16_t SampleSize>
-constexpr std::array<int16_t, SpectrumAnalyzer<SampleSize>::LOG_CNT> SpectrumAnalyzer<SampleSize>::_init_log_table() {
-    std::array<int16_t, LOG_CNT> a{};
-    for (size_t i = 0; i < a.size(); ++i) {
-        a[i] = log10(1 + 9.f * i / (LOG_CNT - 1)) * MAX_VALUE;
-    }
-
     return a;
 }

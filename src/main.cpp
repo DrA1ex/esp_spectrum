@@ -7,8 +7,8 @@
 
 #include "misc/analog.h"
 #include "misc/resample.h"
+#include "misc/scale.h"
 #include "misc/spectrum.h"
-#include "misc/window.h"
 
 constexpr int MATRIX_PIN_CS = 5;
 constexpr int MATRIX_WIDTH = 1;
@@ -34,11 +34,11 @@ Max72xxPanel matrix = Max72xxPanel(MATRIX_PIN_CS, MATRIX_WIDTH, MATRIX_HEIGHT);
 SpectrumAnalyzer<FFT_SIZE> spectrum_analyzer(FFT_GAIN);
 const uint16_t FFT_OUT_SIZE = spectrum_analyzer.SPECTRUM_SIZE;
 
+LogScale log_scale(WINDOW_SAMPLES);
+
 typedef Resample<MATRIX_HEIGHT * 8, FFT_OUT_SIZE> ResampleT;
 ResampleT *resample;
 
-Window<WindowMode::MAX> window_max(WINDOW_SAMPLES);
-Window<WindowMode::MIN> window_min(WINDOW_SAMPLES);
 
 AnalogReader reader(FFT_SIZE, A0, FFT_SAMPLE_RATE);
 
@@ -97,26 +97,7 @@ void loop() {
 void populate_data(uint16_t *result) {
     spectrum_analyzer.dft(reader.get(), result);
 
-    auto t_begin = micros();
-
-    int32_t v_min = 1024, v_max = 0;
-    for (int i = 0; i < FFT_OUT_SIZE; ++i) {
-        const auto value = result[i];
-
-        if (value < v_min) v_min = value;
-        if (value > v_max) v_max = value;
-    }
-
-    window_max.add(v_max);
-    window_min.add(v_min);
-
-    VERBOSE(D_PRINTF("SPECTRAL: %u..%u\n", v_min, v_max));
-
-    VERBOSE(D_PRINTF("WINDOW: %u..%u\n", window_min.get(), window_max.get()));
-
-    spectrum_analyzer.scale(result, window_min.get(), window_max.get());
-
-    D_PRINTF("Spectral processing: %lu us\n", micros() - t_begin);
+    log_scale.scale(result, FFT_OUT_SIZE);
 }
 
 void render() {
@@ -140,7 +121,7 @@ void render() {
         if (significant_cnt > 0) accumulated /= significant_cnt;
         else accumulated = 0;
 
-        const auto height = (int16_t) (accumulated * matrix.height() / spectrum_analyzer.MAX_VALUE);
+        const auto height = (int16_t) (accumulated * matrix.height() / log_scale.MAX_VALUE);
         matrix.drawLine(i, matrix.height(), i, matrix.height() - height, HIGH);
 
         prev_index = index;
