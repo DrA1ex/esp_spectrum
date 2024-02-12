@@ -65,10 +65,11 @@ AnalogReader::~AnalogReader() {
 }
 
 bool AnalogReader::read_if_needed() {
-    if (micros() - _last_read_time < _read_interval) return false;
+    const auto now = micros();
+    if (now - _last_read_time < _read_interval) return false;
 
+    _last_read_time = now;
     _data[_index] = analogRead(_pin);
-    _last_read_time = micros();
 
     if (++_index == _size) _index = 0;
 
