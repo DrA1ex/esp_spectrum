@@ -3,13 +3,13 @@
 #include <Arduino.h>
 
 #include "misc/analog.h"
-#include "misc/fft.h"
+#include "misc/fourier.h"
 #include "misc/resample.h"
 #include "misc/scale.h"
 
 template<uint16_t SampleSize, uint16_t BucketCount, uint8_t AnalogPin>
 class SpectrumAnalyzer {
-    FFT<SampleSize> _fft;
+    Fourier<SampleSize> _fourier;
     AnalogReader _reader;
     LogScale<> _log_scale;
     Resample<BucketCount, SampleSize / 2> _resample;
@@ -19,20 +19,20 @@ class SpectrumAnalyzer {
 
     uint16_t _gate;
 
-    uint16_t _fft_1[SampleSize / 2]{};
-    uint16_t _fft_2[SampleSize / 2]{};
+    uint16_t _spectrum_1[SampleSize / 2]{};
+    uint16_t _spectrum_2[SampleSize / 2]{};
 
-    uint16_t *_spectrum = _fft_1;
-    uint16_t *_prev_spectrum = _fft_2;
+    uint16_t *_current_spectrum = _spectrum_1;
+    uint16_t *_prev_spectrum = _spectrum_2;
 
     unsigned long _last_fft_update = 0;
 
 public:
-    static constexpr uint16_t SPECTRUM_SIZE = decltype(_fft)::SPECTRUM_SIZE;
+    static constexpr uint16_t SPECTRUM_SIZE = decltype(_fourier)::SPECTRUM_SIZE;
     static constexpr uint16_t MAX_VALUE = decltype(_log_scale)::MAX_VALUE;
 
     SpectrumAnalyzer(uint16_t sample_rate, uint16_t update_interval, uint16_t window_duration, uint16_t _gain = 1, uint16_t gate = 0) :
-            _fft(_gain),
+            _fourier(_gain),
             _reader(SampleSize, AnalogPin, sample_rate),
             _log_scale(window_duration / update_interval),
             _resample(sample_rate / SPECTRUM_SIZE, sample_rate),
@@ -43,10 +43,6 @@ public:
     void tick();
 
     [[nodiscard]] inline uint16_t get(uint16_t index, uint8_t frac = 255) const;
-
-    [[nodiscard]] inline const uint16_t *spectrum() const { return _spectrum; }
-    [[nodiscard]] inline const uint16_t *prev_spectrum() const { return _prev_spectrum; }
-
     [[nodiscard]] inline uint16_t delta() const { return millis() - _last_fft_update; }
 };
 
@@ -59,12 +55,12 @@ void SpectrumAnalyzer<SampleSize, BucketCount, AnalogPin>::tick() {
     if (millis() - _last_fft_update >= _update_interval) {
         const auto start = millis();
 
-        uint16_t *tmp = _spectrum;
-        _spectrum = _prev_spectrum;
+        uint16_t *tmp = _current_spectrum;
+        _current_spectrum = _prev_spectrum;
         _prev_spectrum = tmp;
 
-        _fft.dft(_reader.data(), _spectrum);
-        _log_scale.scale(_spectrum, SPECTRUM_SIZE);
+        _fourier.dft(_reader.data(), _current_spectrum);
+        _log_scale.scale(_current_spectrum, SPECTRUM_SIZE);
 
         _last_fft_update = start;
     }
@@ -80,7 +76,7 @@ uint16_t SpectrumAnalyzer<SampleSize, BucketCount, AnalogPin>::get(uint16_t inde
     uint32_t accumulated = 0;
     uint32_t significant_cnt = 0;
     for (int j = left; j <= right; ++j) {
-        const auto value = _prev_spectrum[j] - ((int32_t) _prev_spectrum[j] - _spectrum[j]) * frac / 255;
+        const auto value = _prev_spectrum[j] - ((int32_t) _prev_spectrum[j] - _current_spectrum[j]) * frac / 255;
         accumulated += value;
 
         if (value >= _gate) ++significant_cnt;
