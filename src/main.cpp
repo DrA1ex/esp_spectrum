@@ -15,13 +15,13 @@ constexpr int MATRIX_WIDTH = 1;
 constexpr int MATRIX_HEIGHT = 4;
 
 constexpr int MATRIX_ROTATION = 1;
-constexpr int MATRIX_INTENSITY = 10;
+constexpr int MATRIX_INTENSITY = 0;
 
 const uint16_t FFT_SAMPLE_RATE = 9400;
 
 const uint16_t FFT_SIZE = 256;
 const uint16_t FFT_GAIN = 10;
-const int16_t FFT_GATE = 0;
+const uint16_t FFT_GATE = 0;
 
 const uint16_t FFT_UPDATE_INTERVAL = 1000 / 15;
 const uint16_t RENDER_INTERVAL = 1000 / 30;
@@ -40,8 +40,7 @@ const uint16_t FFT_OUT_SIZE = spectrum_analyzer.SPECTRUM_SIZE;
 LogScale log_scale(WINDOW_SAMPLES);
 
 typedef Resample<MATRIX_HEIGHT * 8, FFT_OUT_SIZE> ResampleT;
-ResampleT *resample;
-
+ResampleT resample(FFT_SAMPLE_RATE / FFT_OUT_SIZE, FFT_SAMPLE_RATE);
 
 AnalogReader reader(FFT_SIZE, A0, FFT_SAMPLE_RATE);
 
@@ -57,8 +56,6 @@ void setup() {
 
     matrix.setIntensity(MATRIX_INTENSITY);
     matrix.setRotation(MATRIX_ROTATION);
-
-    resample = new ResampleT(FFT_SAMPLE_RATE / FFT_OUT_SIZE, FFT_SAMPLE_RATE);
 
     D_PRINT("Initialized");
 }
@@ -107,7 +104,7 @@ void render() {
 
     int prev_index = 0;
     for (int16_t i = 0; i < matrix.width(); ++i) {
-        const int index = (*resample)[i];
+        const int index = resample[i];
 
         int32_t accumulated = 0;
         int32_t significant_cnt = 0;
