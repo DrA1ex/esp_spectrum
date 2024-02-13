@@ -5,7 +5,7 @@
 #include <cmath>
 
 template<uint16_t SampleSize, uint16_t CosAmount = 4096>
-class SpectrumAnalyzer {
+class FFT {
     static_assert((SampleSize & (SampleSize - 1)) == 0, "SampleSize must be power of 2");
 
     constexpr std::array<int16_t, SampleSize> _init_cos_table();
@@ -19,7 +19,7 @@ public:
 
     static constexpr uint16_t COS_AMOUNT = CosAmount;
 
-    explicit SpectrumAnalyzer(uint16_t gain = 1);
+    explicit FFT(uint16_t gain = 1);
 
     void dft(const uint16_t *data, uint16_t *result);
 
@@ -28,10 +28,10 @@ private:
 };
 
 template<uint16_t SampleSize, uint16_t CosAmount>
-SpectrumAnalyzer<SampleSize, CosAmount>::SpectrumAnalyzer(uint16_t gain): _gain(gain) {}
+FFT<SampleSize, CosAmount>::FFT(uint16_t gain): _gain(gain) {}
 
 template<uint16_t SampleSize, uint16_t CosAmount>
-void SpectrumAnalyzer<SampleSize, CosAmount>::dft(const uint16_t *data, uint16_t *result) {
+void FFT<SampleSize, CosAmount>::dft(const uint16_t *data, uint16_t *result) {
     auto t_begin = micros();
 
     int32_t temp[SAMPLE_SIZE];
@@ -48,7 +48,7 @@ void SpectrumAnalyzer<SampleSize, CosAmount>::dft(const uint16_t *data, uint16_t
 }
 
 template<uint16_t SampleSize, uint16_t CosAmount>
-void SpectrumAnalyzer<SampleSize, CosAmount>::_dft(const uint16_t *in, int32_t *out, uint16_t length, uint16_t step) {
+void FFT<SampleSize, CosAmount>::_dft(const uint16_t *in, int32_t *out, uint16_t length, uint16_t step) {
     if (length == 1) {
         *out = *in;
         return;
@@ -69,7 +69,7 @@ void SpectrumAnalyzer<SampleSize, CosAmount>::_dft(const uint16_t *in, int32_t *
 }
 
 template<uint16_t SampleSize, uint16_t CosAmount>
-constexpr std::array<int16_t, SampleSize> SpectrumAnalyzer<SampleSize, CosAmount>::_init_cos_table() {
+constexpr std::array<int16_t, SampleSize> FFT<SampleSize, CosAmount>::_init_cos_table() {
     const float const_part = 2 * M_PI / SampleSize;
 
     std::array<int16_t, SampleSize> a{};

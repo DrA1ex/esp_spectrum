@@ -12,8 +12,8 @@ class LogScale {
     Window<WindowMode::MIN> _window_min;
 
 public:
-    const uint16_t LOG_CNT = LogCnt;
-    const uint16_t MAX_VALUE = MaxValue;
+    static constexpr uint16_t LOG_CNT = LogCnt;
+    static constexpr uint16_t MAX_VALUE = MaxValue;
 
     explicit LogScale(size_t window) : _window_max(window), _window_min(window) {}
 

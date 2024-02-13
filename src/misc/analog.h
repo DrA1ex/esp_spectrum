@@ -57,6 +57,8 @@ private:
 
 AnalogReader::AnalogReader(size_t size, uint8_t pin, uint16_t sample_rate) : _size(size), _pin(pin), _sample_rate(sample_rate) {
     _data = new uint16_t[size];
+    memset(_data, 0, sizeof(uint16_t) * size);
+
     _read_interval = (uint32_t) 1000000 / _sample_rate;
 }
 
