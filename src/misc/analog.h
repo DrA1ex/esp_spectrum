@@ -47,6 +47,8 @@ public:
 
     bool read_if_needed();
 
+    void read_sample();
+
     [[nodiscard]] const uint16_t *data() { return this->_rearrange(), _data; }
     [[nodiscard]] inline AnalogSample raw_data() { return {_data, _size, _index}; };
 
@@ -76,6 +78,22 @@ bool AnalogReader::read_if_needed() {
     if (++_index == _size) _index = 0;
 
     return true;
+}
+
+void AnalogReader::read_sample() {
+    _index = 0;
+
+    for (size_t i = 0; i < _size; ++i) {
+        const auto t = micros();
+
+        _data[i] = analogRead(_pin);
+
+        const auto elapsed = micros() - t;
+
+        if (elapsed < _read_interval) {
+            delayMicroseconds(_read_interval - elapsed);
+        }
+    }
 }
 
 void AnalogReader::_rearrange() {
