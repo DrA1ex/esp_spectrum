@@ -42,7 +42,7 @@ public:
 
     void tick();
 
-    [[nodiscard]] inline uint16_t get(uint16_t index, uint8_t frac = 255) const;
+    [[nodiscard]] uint16_t get(uint16_t index, uint8_t frac = 255) const;
     [[nodiscard]] inline uint16_t delta() const { return millis() - _last_fft_update; }
 };
 
